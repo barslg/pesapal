@@ -24,6 +24,8 @@ include("../../../includes/gatewayfunctions.php");
 include("../../../includes/invoicefunctions.php");
 // include("checkStatus.php");
 
+use WHMCS\Database\Capsule as DB;
+
 global $CONFIG;
 $ca = new WHMCS_ClientArea();
 $ca->initPage();
@@ -31,8 +33,6 @@ $ca->requireLogin();
 
 $gatewaymodule  	= "pesapal"; 
 $gateway        	= getGatewayVariables($gatewaymodule);
-
-
 
 if (!$gateway["type"])
     die("PesaPal Module Not Activated");
@@ -56,8 +56,6 @@ $data = unserialize($data);
 
 $pesapalTrackingId = $data['transactionid'];
 $pesapalMerchantReference = $data['invoiceid'];
-
-
 
 
 // $pesapalV3Helper->dbg($data);
@@ -87,22 +85,21 @@ $invoiceid = checkCbInvoiceID($invoiceId, $gateway['name']);
 # Checks transaction number isn't already in the database and ends processing if it does
 //checkCbTransID($transid);
 
-// $pesapalV3Helper->dbg($status);
-
 
 if ($status == "COMPLETED") {
-
-    // $pesapalV3Helper->dbg([$invoiceid, $transid, $amount, $fee, $gatewaymodule]);
-
 
     addInvoicePayment($invoiceid, $transid, $amount, $fee, $gatewaymodule);
     logTransaction($gateway["name"], $data, "Completed");
 
+    $postData=[
+        'paymentmethod' => $gatewaymodule,
+    ];
 
+    $res=DB::table('tblinvoices')->where('id',$invoiceid)->update($postData);
 
     $invoice_url = $systemurl . 'viewinvoice.php?id=' . $invoiceid;
-    //header("Location: $invoice_url");
-    //exit;
+    // header("Location: $invoice_url");
+    // exit;
 } elseif ($status == "FAILED")
 $values["status"] = "Failed";
 else
@@ -111,7 +108,8 @@ else
 $command = "UpdateInvoice";
 $adminuser = $gateway["adminuser"];
 $values["invoiceid"] = $invoiceid;
-$values["paymentmethod"] = $gateway["name"];
+// $values["paymentmethod"] = $gateway["name"];
+$values["paymentmethod"] = $gatewaymodule;
 
 $results = localAPI($command, $values, $adminuser);
 logTransaction($gateway["name"], $_GET, $results);
@@ -124,4 +122,5 @@ $ca->assign('invoiceid', $invoiceid);
 $ca->assign('pesapalTrackingId', $pesapalTrackingId);
 $ca->setTemplate('pesapal_callback');
 $ca->output();
+
 ?>
